@@ -1,0 +1,101 @@
+#include <Wire.h>
+#include <VL53L0X.h>
+#include <Servo.h>
+
+VL53L0X sensor;
+Servo myservo;
+
+int ledPin = 7;
+int speakerPin = 10;
+int servoPos = 0;         // Start at the beginning position
+int scanDirection = 1;    // 1 for clockwise, -1 for counterclockwise
+bool warningMode = false;
+
+void setup() {
+  Wire.begin();
+  sensor.init();
+  sensor.setTimeout(500);
+  sensor.startContinuous();
+  
+  myservo.attach(6);
+  pinMode(ledPin, OUTPUT);
+  pinMode(speakerPin, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  int distance = sensor.readRangeContinuousMillimeters(); // Read distance in mm
+
+  if (sensor.timeoutOccurred()) { 
+    Serial.println("Sensor timeout!");
+    return;
+  }
+
+  Serial.print("Distance: ");
+  Serial.print(distance / 10);  // Convert mm to cm
+  Serial.println(" cm");
+
+  if (distance > 1500) {  // No object within 1.5 meters
+    warningMode = false;
+    searchMode();
+  } else {  // Object detected within 1.5 meters
+    warningMode = true;
+    warningModeActions();
+  }
+}
+
+void searchMode() {
+  // Increase the speed and smoothness of the servo movement
+  myservo.write(servoPos);
+  servoPos += scanDirection * 8;  // Higher increment for faster movement
+
+  if (servoPos >= 180 || servoPos <= 0) {
+    scanDirection *= -1;  // Change direction smoothly
+  }
+
+  delay(5);  // Very short delay for smoother and continuous motion
+
+  // LED blinks at a faster rate
+  digitalWrite(ledPin, HIGH);
+  delay(100);
+  digitalWrite(ledPin, LOW);
+  delay(100);
+
+  noTone(speakerPin);  // Ensure no sound is playing
+}
+
+void warningModeActions() {
+  // Slow down the servo movement
+  myservo.write(servoPos);
+  servoPos += scanDirection * 1;  // Move slower in warning mode
+
+  if (servoPos >= 180 || servoPos <= 0) {
+    scanDirection *= -1;  // Change direction smoothly
+  }
+
+  // LED stays on continuously
+  digitalWrite(ledPin, HIGH);
+
+  // Play a new part of the Ghostbusters theme song
+  playNewPartOfGhostbustersTheme();
+}
+
+void playNewPartOfGhostbustersTheme() {
+  int melody[] = {
+    523, 0, 523, 523, 0, 523, 523, 494, 0, 466, 0, 466, 
+    523, 0, 523, 523, 0, 523, 523, 494, 0, 466, 0, 466, 
+    587, 0, 587, 587, 0, 523, 523, 494, 0, 466, 0, 440
+  };
+  int noteDurations[] = {
+    150, 75, 150, 75, 150, 75, 150, 150, 75, 75,
+    150, 75, 150, 75, 150, 75, 150, 150, 75, 75,
+    150, 75, 150, 75, 150, 75, 150, 150, 75, 75,
+    150, 75, 150, 75, 150, 150, 75, 75, 75
+  };
+  
+  for (int thisNote = 0; thisNote < 36; thisNote++) {
+    int noteDuration = noteDurations[thisNote];
+    tone(speakerPin, melody[thisNote], noteDuration);
+    delay(noteDuration * 1.1); // Maintain the playback tempo
+  }
+}
